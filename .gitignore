@@ -1,8 +1,13 @@
 
 #Airflow
-Airflow/**/airflow/logs/
 Airflow/**/logs/
 Airflow/**/__pycache__/
+Airflow/**/artifacts/*.joblib
+
+
+#Databases
+Database/mongo-data/
+Database/**/mongo-data/
 
 
 #Python
@@ -15,25 +20,13 @@ __pycache__/
 venv/
 
 
-#ML / Models
-*.pkl
-*.joblib
-*.h5
-*.onnx
+#Node / Frontend
+Frontend/**/node_modules/
+Frontend/**/.env
 
 
-#OS
+#OS / IDE
 .DS_Store
 Thumbs.db
-
-
-#IDE
 .vscode/
 .idea/
-
-
-
-#Databases
-Database/mongo-data/
-Database/**/mongo-data/
-Database/**/data/

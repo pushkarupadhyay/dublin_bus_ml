@@ -7,7 +7,7 @@ import joblib
 from sqlalchemy import create_engine, text
 from catboost import CatBoostRegressor
 
-ARTIFACTS_DIR = r"C:\Users\pushk\airflow\artifacts"
+ARTIFACTS_DIR = os.getenv("ARTIFACTS_DIR", os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "Airflow", "ETL&Model_Training_Dag", "airflow", "artifacts"))
 DB_URI = "postgresql+psycopg2://dap:dap@localhost:5432/dublin_bus_db"
 PRED_LIMIT = 5
 METRIC_LIMIT = 2000

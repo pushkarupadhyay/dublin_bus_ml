@@ -16,7 +16,7 @@ export const useVehiclesWebSocket = () => {
         const interval = setInterval(async () => {
           try {
             // Fetch from MongoDB or your vehicles endpoint
-            const response = await fetch('http://localhost:5000/api/vehicles/live');
+            const response = await fetch(`${process.env.REACT_APP_API_BASE_URL || 'http://localhost:8888'}/api/vehicles/live`);
             const data = await response.json();
             setVehicles(data.vehicles || []);
             setIsConnected(true);

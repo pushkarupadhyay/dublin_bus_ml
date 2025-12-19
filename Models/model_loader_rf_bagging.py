@@ -11,7 +11,9 @@ warnings.filterwarnings('ignore')
 
 
 class RandomForestModelService:
-    def __init__(self, db_config, artifacts_dir="../artifacts"):
+    def __init__(self, db_config, artifacts_dir=None):
+        if artifacts_dir is None:
+            artifacts_dir = os.getenv("ARTIFACTS_DIR", os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "Airflow", "ETL&Model_Training_Dag", "airflow", "artifacts"))
         self.db_config = db_config
         self.artifacts_dir = artifacts_dir
         self.conn = self.get_db_connection()

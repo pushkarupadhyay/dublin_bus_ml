@@ -1,3 +1,6 @@
+## Claude Code settings
+.claude/
+
 #Airflow logs and artifacts
 Airflow/**/logs/
 Airflow/**/artifacts/*.joblib

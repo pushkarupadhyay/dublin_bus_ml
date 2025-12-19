@@ -48,7 +48,7 @@ const LiveMapPage: React.FC = () => {
     const fetchVehicles = async () => {
       try {
         setLoading(true);
-        const response = await fetch('http://localhost:5000/api/vehicles/all');
+        const response = await fetch(`${process.env.REACT_APP_API_BASE_URL || 'http://localhost:8888'}/api/vehicles/all`);
         const data = await response.json();
 
         setVehicles(data.vehicles || []);

@@ -64,7 +64,7 @@ const StopArrivalsPage: React.FC = () => {
 
   useEffect(() => {
     fetchArrivals();
-    const interval = setInterval(fetchArrivals, 30000); // Refresh every 30s
+    const interval = setInterval(fetchArrivals, 10000); // Refresh every 15s
 
     return () => clearInterval(interval);
   }, [stopId]);

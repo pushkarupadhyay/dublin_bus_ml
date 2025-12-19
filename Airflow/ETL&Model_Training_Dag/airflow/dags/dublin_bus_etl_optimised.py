@@ -1,7 +1,5 @@
-# Airflow DAG: High-Volume Real-Time ETL Pipeline (FULLY FIXED & WORKING)
-# File: /root/airflow/dags/dublin_bus_etl.py
-# This code is complete and ready to deploy - NO FURTHER EDITS NEEDED
 
+# File: /root/airflow/dags/dublin_bus_etl_optimised.py
 from datetime import datetime, timedelta, timezone
 from airflow import DAG
 from airflow.operators.python import PythonOperator
@@ -13,15 +11,13 @@ from psycopg2.extras import execute_values
 from psycopg2 import pool
 import gc
 
-# =====================================================================
-# LOGGING CONFIG
-# =====================================================================
+
+#LOGGING CONFIG
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# =====================================================================
-# DATABASE CONFIG
-# =====================================================================
+
+#DATABASE CONFIG
 MONGODB_CONFIG = {
     'uri': 'mongodb://host.docker.internal:27017',
     'database': 'dublin_bus_db',
@@ -37,17 +33,14 @@ POSTGRES_CONFIG = {
     'port': 5432
 }
 
-# =====================================================================
-# PERFORMANCE CONFIG
-# =====================================================================
+#PERFORMANCE CONFIG
 BATCH_SIZE_VEHICLES = 500
 BATCH_SIZE_DELAYS = 500
 BATCH_SIZE_WEATHER = 100
 MAX_RECORDS_PER_RUN = None
 
-# =====================================================================
+
 # CONNECTION POOLING
-# =====================================================================
 class DatabasePool:
     """Manage PostgreSQL connection pool"""
     _instance = None
@@ -81,9 +74,8 @@ class DatabasePool:
         if self._pool:
             self._pool.closeall()
 
-# =====================================================================
-# DATABASE CONNECTIONS
-# =====================================================================
+
+#DATABASE CONNECTIONS
 def get_mongo_connection():
     """Connect to MongoDB"""
     try:
@@ -116,9 +108,8 @@ def return_postgres_connection(conn):
     except Exception as e:
         logger.error(f"✗ Error returning connection: {e}")
 
-# =====================================================================
-# DAG CONFIG
-# =====================================================================
+
+#DAG CONFIG
 default_args = {
     'owner': 'dublin_bus',
     'depends_on_past': False,
@@ -138,16 +129,15 @@ dag = DAG(
     max_active_runs=1,
 )
 
-# =====================================================================
-# CREATE POSTGRESQL TABLES
-# =====================================================================
+
+#CREATE POSTGRESQL TABLES
 def create_postgres_tables():
     """Create required PostgreSQL tables"""
     conn = get_postgres_connection()
     cur = conn.cursor()
 
     try:
-        # 1. Raw vehicles table
+        #Raw vehicles table
         cur.execute("""
             CREATE TABLE IF NOT EXISTS vehicles_raw (
                 id BIGSERIAL PRIMARY KEY,
@@ -166,7 +156,7 @@ def create_postgres_tables():
             CREATE INDEX IF NOT EXISTS idx_vehicles_timestamp ON vehicles_raw(vehicle_timestamp);
             CREATE INDEX IF NOT EXISTS idx_vehicles_route ON vehicles_raw(route_id);
         """)
-        logger.info("✓ Created vehicles_raw table")
+        logger.info("Created vehicles_raw table")
 
         # 2. Trip delays table
         cur.execute("""
@@ -192,7 +182,7 @@ def create_postgres_tables():
             CREATE INDEX IF NOT EXISTS idx_delays_delay ON trip_delays_raw(arrival_delay);
             CREATE INDEX IF NOT EXISTS idx_delays_route ON trip_delays_raw(route_id);
         """)
-        logger.info("✓ Created trip_delays_raw table")
+        logger.info("Created trip_delays_raw table")
 
         # 3. Weather data table
         cur.execute("""
@@ -210,7 +200,7 @@ def create_postgres_tables():
             
             CREATE INDEX IF NOT EXISTS idx_weather_time ON weather_data_raw(observation_time);
         """)
-        logger.info("✓ Created weather_data_raw table")
+        logger.info("Created weather_data_raw table")
 
         # 4. Cleaned vehicles
         cur.execute("""
@@ -229,7 +219,7 @@ def create_postgres_tables():
             CREATE INDEX IF NOT EXISTS idx_vehicles_cleaned_trip ON vehicles_cleaned(trip_id);
             CREATE INDEX IF NOT EXISTS idx_vehicles_cleaned_time ON vehicles_cleaned(vehicle_timestamp);
         """)
-        logger.info("✓ Created vehicles_cleaned table")
+        logger.info("Created vehicles_cleaned table")
 
         # 5. Cleaned delays
         cur.execute("""
@@ -252,9 +242,9 @@ def create_postgres_tables():
             CREATE INDEX IF NOT EXISTS idx_delays_cleaned_is_late ON delays_cleaned(is_late);
             CREATE INDEX IF NOT EXISTS idx_delays_cleaned_time ON delays_cleaned(trip_timestamp);
         """)
-        logger.info("✓ Created delays_cleaned table")
+        logger.info("Created delays_cleaned table")
 
-        # 6. Weather cleaned
+        #Weather cleaned
         cur.execute("""
             CREATE TABLE IF NOT EXISTS weather_cleaned (
                 id BIGSERIAL PRIMARY KEY,
@@ -270,9 +260,9 @@ def create_postgres_tables():
             
             CREATE INDEX IF NOT EXISTS idx_weather_cleaned_time ON weather_cleaned(observation_time);
         """)
-        logger.info("✓ Created weather_cleaned table")
+        logger.info("Created weather_cleaned table")
 
-        # 7. Merged dataset
+        #Merged dataset
         cur.execute("""
             CREATE TABLE IF NOT EXISTS bus_weather_merged (
                 id BIGSERIAL PRIMARY KEY,
@@ -301,7 +291,7 @@ def create_postgres_tables():
             CREATE INDEX IF NOT EXISTS idx_merged_time ON bus_weather_merged(vehicle_timestamp);
             CREATE INDEX IF NOT EXISTS idx_merged_route ON bus_weather_merged(route_id);
         """)
-        logger.info("✓ Created bus_weather_merged table")
+        logger.info("Created bus_weather_merged table")
 
         # 8. ETL state tracking
         cur.execute("""
@@ -318,22 +308,21 @@ def create_postgres_tables():
             VALUES ('vehicles', NOW()), ('delays', NOW()), ('weather', NOW())
             ON CONFLICT (source) DO NOTHING;
         """)
-        logger.info("✓ Created etl_state tracking table")
+        logger.info("Created etl_state tracking table")
 
         conn.commit()
-        logger.info("✓✓ All tables created successfully")
+        logger.info("All tables created successfully")
 
     except Exception as e:
-        logger.error(f"✗ Error creating tables: {e}")
+        logger.error(f" Error creating tables: {e}")
         conn.rollback()
         raise
     finally:
         cur.close()
         return_postgres_connection(conn)
 
-# =====================================================================
-# EXTRACT & TRANSFORM: VEHICLES (WITH FIX)
-# =====================================================================
+
+#EXTRACT & TRANSFORM: VEHICLES
 def extract_transform_vehicles(**context):
     """Extract ALL vehicle positions from MongoDB in batches"""
     client = get_mongo_connection()
@@ -342,7 +331,7 @@ def extract_transform_vehicles(**context):
     try:
         vehicles_col = db['vehicles_raw']
         
-        # Get last processed timestamp
+        #Get last processed timestamp
         conn = get_postgres_connection()
         cur = conn.cursor()
         cur.execute("SELECT last_processed_timestamp FROM etl_state WHERE source = 'vehicles'")
@@ -353,12 +342,12 @@ def extract_transform_vehicles(**context):
         
         logger.info(f"Last processed timestamp: {last_timestamp}")
         
-        # Build query filter - FIX: Check isinstance before calling .timestamp()
+        #Build query filter FIX: Check isinstance before calling .timestamp()
         query_filter = {}
         if last_timestamp and isinstance(last_timestamp, datetime):
             query_filter = {'vehicle_timestamp': {'$gt': last_timestamp.timestamp()}}
         
-        # Count total records
+        #Count total records
         total_count = vehicles_col.count_documents(query_filter)
         logger.info(f"Found {total_count} new vehicle records to process")
         
@@ -366,7 +355,7 @@ def extract_transform_vehicles(**context):
             logger.info("No new vehicle records to process")
             return 0
         
-        # Process in batches
+        #Process in batches
         all_records = []
         batch_count = 0
         cursor = vehicles_col.find(query_filter).sort('vehicle_timestamp', 1)
@@ -415,13 +404,13 @@ def extract_transform_vehicles(**context):
                 value=all_records
             )
         
-        logger.info(f"✓ Extracted {total_count} vehicle records in {batch_count} batches")
+        logger.info(f"Extracted {total_count} vehicle records in {batch_count} batches")
         context['ti'].xcom_push(key='vehicle_batch_count', value=batch_count)
         
         return total_count
         
     except Exception as e:
-        logger.error(f"✗ Error extracting vehicle data: {e}")
+        logger.error(f"Error extracting vehicle data: {e}")
         raise
     finally:
         client.close()
@@ -468,9 +457,9 @@ def load_vehicles_to_postgres(**context):
             conn.commit()
             gc.collect()
         
-        logger.info(f"✓✓ Loaded {total_loaded} vehicle records to PostgreSQL")
+        logger.info(f"Loaded {total_loaded} vehicle records to PostgreSQL")
         
-        # Update state
+        #Update state
         cur.execute("""
             UPDATE etl_state 
             SET last_processed_timestamp = NOW(), 
@@ -488,9 +477,8 @@ def load_vehicles_to_postgres(**context):
         cur.close()
         return_postgres_connection(conn)
 
-# =====================================================================
-# EXTRACT & TRANSFORM: DELAYS (WITH FIX)
-# =====================================================================
+
+# EXTRACT & TRANSFORM: DELAYS
 def extract_transform_delays(**context):
     """Extract ALL trip delays from MongoDB in batches"""
     client = get_mongo_connection()
@@ -499,7 +487,7 @@ def extract_transform_delays(**context):
     try:
         delays_col = db['trip_updates_raw']
         
-        # Get last processed timestamp
+        #Get last processed timestamp
         conn = get_postgres_connection()
         cur = conn.cursor()
         cur.execute("SELECT last_processed_timestamp FROM etl_state WHERE source = 'delays'")
@@ -510,12 +498,12 @@ def extract_transform_delays(**context):
         
         logger.info(f"Last processed timestamp (delays): {last_timestamp}")
         
-        # Build query filter - FIX: Check isinstance before calling .timestamp()
+        #Build query filter FIX: Check isinstance before calling .timestamp()
         query_filter = {}
         if last_timestamp and isinstance(last_timestamp, datetime):
             query_filter = {'vehicle_timestamp': {'$gt': last_timestamp.timestamp()}}
         
-        # Count total records
+        #Count total records
         total_count = delays_col.count_documents(query_filter)
         logger.info(f"Found {total_count} new delay records to process")
         
@@ -523,7 +511,7 @@ def extract_transform_delays(**context):
             logger.info("No new delay records to process")
             return 0
         
-        # Process in batches
+        #Process in batches
         all_records = []
         batch_count = 0
         cursor = delays_col.find(query_filter).sort('vehicle_timestamp', 1)
@@ -578,13 +566,13 @@ def extract_transform_delays(**context):
                 value=all_records
             )
         
-        logger.info(f"✓ Extracted {total_count} delay records in {batch_count} batches")
+        logger.info(f"Extracted {total_count} delay records in {batch_count} batches")
         context['ti'].xcom_push(key='delay_batch_count', value=batch_count)
         
         return total_count
         
     except Exception as e:
-        logger.error(f"✗ Error extracting delay data: {e}")
+        logger.error(f"Error extracting delay data: {e}")
         raise
     finally:
         client.close()
@@ -632,9 +620,9 @@ def load_delays_to_postgres(**context):
             conn.commit()
             gc.collect()
         
-        logger.info(f"✓✓ Loaded {total_loaded} delay records to PostgreSQL")
+        logger.info(f"Loaded {total_loaded} delay records to PostgreSQL")
         
-        # Update state
+        #Update state
         cur.execute("""
             UPDATE etl_state 
             SET last_processed_timestamp = NOW(), 
@@ -645,16 +633,15 @@ def load_delays_to_postgres(**context):
         conn.commit()
         
     except Exception as e:
-        logger.error(f"✗ Error loading delay data: {e}")
+        logger.error(f"Error loading delay data: {e}")
         conn.rollback()
         raise
     finally:
         cur.close()
         return_postgres_connection(conn)
 
-# =====================================================================
-# EXTRACT & TRANSFORM: WEATHER (WITH FIX)
-# =====================================================================
+
+#EXTRACT & TRANSFORM: WEATHER 
 def extract_transform_weather(**context):
     """Extract weather data from MongoDB"""
     client = get_mongo_connection()
@@ -663,7 +650,7 @@ def extract_transform_weather(**context):
     try:
         weather_col = db['weather_raw']
         
-        # Get last processed timestamp
+        #Get last processed timestamp
         conn = get_postgres_connection()
         cur = conn.cursor()
         cur.execute("SELECT last_processed_timestamp FROM etl_state WHERE source = 'weather'")
@@ -674,12 +661,12 @@ def extract_transform_weather(**context):
         
         logger.info(f"Last processed timestamp (weather): {last_timestamp}")
         
-        # Build query filter - FIX: Check isinstance before calling .timestamp()
+        #Build query filter Check isinstance before calling .timestamp()
         query_filter = {}
         if last_timestamp and isinstance(last_timestamp, datetime):
             query_filter = {'observation_time': {'$gt': last_timestamp}}
         
-        # Count total records
+        #Count total records
         total_count = weather_col.count_documents(query_filter)
         logger.info(f"Found {total_count} new weather records to process")
         
@@ -687,7 +674,7 @@ def extract_transform_weather(**context):
             logger.info("No new weather records to process")
             return 0
         
-        # Weather is less frequent, process all at once
+        #Weather is less frequent, process all at once
         records = []
         cursor = weather_col.find(query_filter)
         
@@ -710,19 +697,18 @@ def extract_transform_weather(**context):
                 logger.warning(f"Skipping invalid weather record: {e}")
                 continue
         
-        logger.info(f"✓ Extracted {len(records)} weather records")
+        logger.info(f"Extracted {len(records)} weather records")
         context['ti'].xcom_push(key='weather_records', value=records)
         
         return len(records)
         
     except Exception as e:
-        logger.error(f"✗ Error extracting weather data: {e}")
+        logger.error(f"Error extracting weather data: {e}")
         raise
     finally:
         client.close()
 
 def load_weather_to_postgres(**context):
-    """Load weather data"""
     records = context['ti'].xcom_pull(task_ids='extract_transform_weather', key='weather_records')
     
     if not records:
@@ -748,7 +734,7 @@ def load_weather_to_postgres(**context):
         """, data, page_size=100)
         
         conn.commit()
-        logger.info(f"✓✓ Loaded {len(records)} weather records to PostgreSQL")
+        logger.info(f"Loaded {len(records)} weather records to PostgreSQL")
         
         # Update state
         cur.execute("""
@@ -761,23 +747,21 @@ def load_weather_to_postgres(**context):
         conn.commit()
         
     except Exception as e:
-        logger.error(f"✗ Error loading weather data: {e}")
+        logger.error(f"Error loading weather data: {e}")
         conn.rollback()
         raise
     finally:
         cur.close()
         return_postgres_connection(conn)
 
-# =====================================================================
-# TRANSFORMATION: CLEAN & DEDUPLICATE
-# =====================================================================
+
+#TRANSFORMATION: CLEAN & DEDUPLICATE
 def clean_and_aggregate():
-    """Clean data and create enriched tables"""
     conn = get_postgres_connection()
     cur = conn.cursor()
     
     try:
-        # 1. Clean vehicles
+        #Clean vehicles
         cur.execute("""
             DELETE FROM vehicles_cleaned
             WHERE id NOT IN (
@@ -788,9 +772,9 @@ def clean_and_aggregate():
                 ) AS t
             );
         """)
-        logger.info("✓ Deduplicated vehicles_cleaned")
+        logger.info("Deduplicated vehicles_cleaned")
         
-        # 2. Insert new vehicles
+        #Insert new vehicles
         cur.execute("""
             INSERT INTO vehicles_cleaned
             (trip_id, route_id, vehicle_id, latitude, longitude, vehicle_timestamp)
@@ -805,7 +789,7 @@ def clean_and_aggregate():
         """)
         logger.info("✓ Cleaned and inserted vehicle data")
         
-        # 3. Clean delays
+        #Clean delays
         cur.execute("""
             INSERT INTO delays_cleaned
             (trip_id, route_id, stop_id, stop_sequence, arrival_delay, departure_delay, 
@@ -823,7 +807,7 @@ def clean_and_aggregate():
         """)
         logger.info("✓ Cleaned and inserted delay data")
         
-        # 4. Clean weather
+        #Clean weather
         cur.execute("""
             INSERT INTO weather_cleaned
             (temperature, humidity, wind_speed, precipitation, 
@@ -850,24 +834,22 @@ def clean_and_aggregate():
             )
             ON CONFLICT (observation_time) DO NOTHING;
         """)
-        logger.info("✓ Cleaned and categorized weather data")
+        logger.info("Cleaned and categorized weather data")
         
         conn.commit()
-        logger.info("✓✓ Data transformation complete")
+        logger.info("Data transformation complete")
         
     except Exception as e:
-        logger.error(f"✗ Error during transformation: {e}")
+        logger.error(f"Error during transformation: {e}")
         conn.rollback()
         raise
     finally:
         cur.close()
         return_postgres_connection(conn)
 
-# =====================================================================
-# MERGE: ALL DATA
-# =====================================================================
+
+#MERGEING ALL DATA
 def merge_all_data():
-    """Merge all data"""
     conn = get_postgres_connection()
     cur = conn.cursor()
     
@@ -896,27 +878,24 @@ def merge_all_data():
         
         merged_count = cur.rowcount
         conn.commit()
-        logger.info(f"✓✓ Merged {merged_count} records successfully")
+        logger.info(f"Merged {merged_count} records successfully")
         
     except Exception as e:
-        logger.error(f"✗ Error during merge: {e}")
+        logger.error(f"Error during merge: {e}")
         conn.rollback()
         raise
     finally:
         cur.close()
         return_postgres_connection(conn)
 
-# =====================================================================
-# QUALITY CHECK (ABSOLUTELY CORRECT - WORKS 100%)
-# =====================================================================
+
+#QUALITY CHECK TASK FOR PREVIOUS TASKS
 def data_quality_check():
-    """Verify data quality"""
-    logger.info("✓ Data quality check passed - all upstream tasks completed successfully")
+    logger.info("Data quality checking for all upstream tasks completed successfully")
     return True
 
-# =====================================================================
-# TASK DEFINITIONS
-# =====================================================================
+
+#TASK DAG DEFINITIONS
 create_tables_task = PythonOperator(
     task_id='create_postgres_tables',
     python_callable=create_postgres_tables,
@@ -983,9 +962,7 @@ quality_check_task = PythonOperator(
     dag=dag
 )
 
-# =====================================================================
-# DEPENDENCIES
-# =====================================================================
+#DEPENDENCIES
 create_tables_task >> [extract_vehicles_task, extract_delays_task, extract_weather_task]
 
 extract_vehicles_task >> load_vehicles_task

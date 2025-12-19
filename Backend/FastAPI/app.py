@@ -1,8 +1,3 @@
-"""
-Dublin Bus Delay Prediction API - FastAPI
-Complete production-ready API with all endpoints
-"""
-
 import os
 import glob
 from datetime import datetime, timezone
@@ -13,18 +8,15 @@ import joblib
 from catboost import CatBoostRegressor
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, Query, HTTPException, Depends
+from fastapi import FastAPI, Query, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
-from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
-from sqlalchemy import create_engine, text, func, distinct
-from sqlalchemy.orm import Session, sessionmaker
+from sqlalchemy import create_engine, text
 import logging
 
-# =====================================================
-# CONFIGURATION
-# =====================================================
+
+#CONFIG
 ARTIFACTS_DIR = os.getenv("ARTIFACTS_DIR", r"C:\Users\pushk\airflow\artifacts")
 DB_URI = os.getenv("DB_URI", "postgresql+psycopg2://dap:dap@localhost:5432/dublin_bus_db")
 VISUALIZATIONS_DIR = os.path.join(os.getcwd(), "visualizations")
@@ -33,33 +25,13 @@ VIDEOS_DIR = os.path.join(os.getcwd(), "videos")
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# =====================================================
-# DATABASE SESSION
-# =====================================================
-engine = create_engine(DB_URI)
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
-def get_db():
-    """Dependency for database sessions"""
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
+#USING PYDANTIC MODELS (Response Schemas)
 
-# =====================================================
-# PYDANTIC MODELS (Response Schemas)
-# =====================================================
 class RouteInfo(BaseModel):
     route_id: str
     route_short_name: str
     route_long_name: str
-
-class RouteSearchResult(BaseModel):
-    route_id: str
-    route_short_name: str
-    route_long_name: str
-    active_vehicles: int
 
 class PredictionRow(BaseModel):
     id: int
@@ -115,9 +87,9 @@ class ModelMetrics(BaseModel):
     pred_mean: float
     pred_std: float
 
-# =====================================================
-# MODEL SERVICE
-# =====================================================
+
+#MODEL SERVICE
+
 class ModelService:
     def __init__(self, artifacts_dir: str):
         self.artifacts_dir = artifacts_dir
@@ -126,7 +98,6 @@ class ModelService:
         self.models: List[CatBoostRegressor] = []
 
     def load_latest(self):
-        """Load latest model bundle"""
         files = glob.glob(os.path.join(self.artifacts_dir, "catboost_bagged_*.joblib"))
         if not files:
             raise FileNotFoundError(f"No catboost_bagged_*.joblib found in {self.artifacts_dir}")
@@ -135,10 +106,10 @@ class ModelService:
         self.meta = joblib.load(latest)
         self.model_version = os.path.splitext(os.path.basename(latest))[0]
         
-        # Load all CatBoost models
+        #Load all CatBoost models
         self.models = []
         for p in self.meta["model_paths"]:
-            # Handle path conversion (Linux -> Windows)
+            #Handle path conversion (DOCKER Linux -> MY Windows)
             if not os.path.exists(p):
                 p = os.path.join(self.artifacts_dir, os.path.basename(p))
             
@@ -146,11 +117,10 @@ class ModelService:
             m.load_model(p)
             self.models.append(m)
         
-        logger.info(f"✅ Loaded model: {self.model_version}")
-        logger.info(f"✅ Loaded {len(self.models)} CatBoost models")
+        logger.info(f"Loaded model: {self.model_version}")
+        logger.info(f"Loaded {len(self.models)} CatBoost models")
 
     def canonicalize_columns(self, df: pd.DataFrame) -> pd.DataFrame:
-        """Fix column name typos"""
         df = df.copy()
         for bad, good in self.meta["rename_map"].items():
             if bad in df.columns and good not in df.columns:
@@ -158,7 +128,6 @@ class ModelService:
         return df
 
     def add_time_features(self, df: pd.DataFrame) -> pd.DataFrame:
-        """Extract time features from timestamps"""
         df = df.copy()
         df['vehicle_timestamp'] = pd.to_datetime(df['vehicle_timestamp'], errors='coerce', utc=True)
         df['weather_timestamp'] = pd.to_datetime(df['weather_timestamp'], errors='coerce', utc=True)
@@ -170,8 +139,7 @@ class ModelService:
         
         return df.drop(columns=['vehicle_timestamp', 'weather_timestamp'], errors='ignore')
 
-    def prepare_X(self, df_raw: pd.DataFrame) -> pd.DataFrame:
-        """Prepare features for prediction"""
+    def prepare_X(self, df_raw: pd.DataFrame) -> pd.DataFrame:    #Prepare features for prediction
         feature_cols = self.meta["feature_cols"]
         cat_cols = self.meta["cat_cols"]
         num_cols = self.meta["num_cols"]
@@ -180,18 +148,18 @@ class ModelService:
         df = self.canonicalize_columns(df_raw)
         df = self.add_time_features(df)
         
-        # Ensure all features exist
+        #CHECKING all features exist
         for c in feature_cols:
             if c not in df.columns:
                 df[c] = np.nan
         
         X = df[feature_cols].copy()
         
-        # Handle categorical columns
+        #Handle categorical columns
         for c in cat_cols:
             X[c] = X[c].astype(object).where(X[c].notna(), "missing").astype(str)
         
-        # Handle numerical columns
+        #Handle numerical columns
         for c in num_cols:
             X[c] = pd.to_numeric(X[c], errors='coerce')
             fill = train_medians.get(c, float(np.nanmedian(X[c].to_numpy())))
@@ -201,22 +169,18 @@ class ModelService:
         
         return X
 
-    def predict_mean_std(self, X: pd.DataFrame) -> tuple:
-        """Ensemble prediction with uncertainty"""
+    def predict_mean_std(self, X: pd.DataFrame) -> tuple:    #Ensemble prediction with uncertainty
         all_preds = np.vstack([m.predict(X) for m in self.models])
         return np.mean(all_preds, axis=0), np.std(all_preds, axis=0)
 
-# =====================================================
-# GLOBAL INSTANCES
-# =====================================================
+
+#GLOBAL INSTANCES
+engine = create_engine(DB_URI)
 svc = ModelService(ARTIFACTS_DIR)
 
-# =====================================================
 # LIFESPAN (Startup/Shutdown)
-# =====================================================
 @asynccontextmanager
-async def lifespan(app: FastAPI):
-    """Load model on startup, cleanup on shutdown"""
+async def lifespan(app: FastAPI):                     #Load model on startup and cleanup on shutdown
     svc.load_latest()
     yield
     try:
@@ -224,16 +188,15 @@ async def lifespan(app: FastAPI):
     except Exception:
         pass
 
-# =====================================================
-# FASTAPI APP
-# =====================================================
+
+#FASTAPI APP
 app = FastAPI(
     title="Dublin Bus Delay Prediction API",
     version="2.0.0",
     lifespan=lifespan
 )
 
-# CORS Middleware
+#CORS Middleware
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -242,9 +205,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# =====================================================
-# ENDPOINTS - HEALTH & INFO
-# =====================================================
+
+#ENDPOINTS HEALTH & INFO
 @app.get("/health")
 def health():
     """Health check"""
@@ -275,12 +237,10 @@ def root():
         }
     }
 
-# =====================================================
-# ENDPOINTS - ROUTES
-# =====================================================
+
+#ENDPOINTS ROUTES
 @app.get("/routes", response_model=RoutesListResponse)
-def get_all_routes():
-    """Get all available bus routes"""
+def get_all_routes():                                                    #taking all available bus routes stored in Postgresql db
     try:
         query = """
             SELECT route_id, route_short_name, route_long_name
@@ -305,10 +265,8 @@ def get_all_routes():
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/routes/search")
-def search_routes(query: str = Query(..., min_length=1)):
-    """Search for routes by route_short_name"""
+def search_routes(query: str = Query(..., min_length=1)):                     #Search for routes by route_short_name from stored Postgresql Table
     try:
-        # Use SQL query with ILIKE for case-insensitive search
         sql_query = text("""
             SELECT 
                 r.route_id,
@@ -338,7 +296,7 @@ def search_routes(query: str = Query(..., min_length=1)):
             for row in rows
         ]
         
-        logger.info(f"✅ Found {len(results)} routes for query: {query}")
+        logger.info(f"Found {len(results)} routes for query: {query}")
         
         return {
             "success": True,
@@ -347,22 +305,21 @@ def search_routes(query: str = Query(..., min_length=1)):
         }
     
     except Exception as e:
-        logger.error(f"❌ Error searching routes: {e}")
+        logger.error(f"Error searching routes: {e}")
         return {
             "success": False,
             "routes": [],
             "error": str(e)
         }
 
-# =====================================================
-# ENDPOINTS - PREDICTIONS
-# =====================================================
+
+#ENDPOINTS PREDICTIONS
 @app.get("/predict/latest", response_model=PredictResponse)
 def predict_latest(
     limit: int = Query(10, ge=1, le=500),
     write_db: bool = Query(False)
 ):
-    """Predict delays for latest rows (all routes)"""
+    """Predicting the delays for latest rows foe all routes"""
     try:
         query = f"""
             SELECT *
@@ -404,7 +361,7 @@ def predict_latest(
             for i in range(len(df))
         ]
         
-        # Write to DB if requested
+        #Write to DB if required
         if write_db:
             stmt = text("UPDATE bus_weather_merged SET arrival_delay_pred = :pred, arrival_delay_pred_std = :pred_std WHERE id = :id")
             payload = [{"id": r.id, "pred": r.pred_arrival_delay, "pred_std": r.pred_std} for r in rows]
@@ -428,7 +385,7 @@ def predict_by_route(
     limit: int = Query(10, ge=1, le=500),
     write_db: bool = Query(False)
 ):
-    """Predict delays for a specific route"""
+    """Predicting the delays for a specific route"""
     try:
         # Get route info
         route_query = text("""
@@ -456,7 +413,7 @@ def predict_by_route(
             route_long_name=route_row[2]
         )
         
-        # Fetch data for this route
+        #Fetch data for this route
         query = text(f"""
             SELECT *
             FROM bus_weather_merged
@@ -500,7 +457,7 @@ def predict_by_route(
             for i in range(len(df))
         ]
         
-        # Write to DB if requested
+        #Write to DB if required
         if write_db:
             stmt = text("UPDATE bus_weather_merged SET arrival_delay_pred = :pred, arrival_delay_pred_std = :pred_std WHERE id = :id")
             payload = [{"id": r.id, "pred": r.pred_arrival_delay, "pred_std": r.pred_std} for r in rows]
@@ -518,9 +475,8 @@ def predict_by_route(
         logger.error(f"Error in predict_by_route: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-# =====================================================
-# ENDPOINTS - STOPS
-# =====================================================
+
+#ENDPOINTS STOPS
 @app.get("/stops/nearby")
 def get_nearby_stops(
     lat: float = Query(..., description="Latitude"),
@@ -529,29 +485,30 @@ def get_nearby_stops(
 ):
     """Get stops near a location"""
     try:
-        query = text(f"""
+        #Using stop_lat and stop_lon (GTFS standard column names)
+        query = text("""
             SELECT 
                 stop_id,
                 stop_name,
-                latitude,
-                longitude,
+                stop_lat as latitude,
+                stop_lon as longitude,
                 (
                     6371000 * acos(
                         cos(radians(:lat)) * 
-                        cos(radians(latitude)) * 
-                        cos(radians(longitude) - radians(:lng)) + 
+                        cos(radians(stop_lat)) * 
+                        cos(radians(stop_lon) - radians(:lng)) + 
                         sin(radians(:lat)) * 
-                        sin(radians(latitude))
+                        sin(radians(stop_lat))
                     )
                 ) AS distance
             FROM stops
             WHERE (
                 6371000 * acos(
                     cos(radians(:lat)) * 
-                    cos(radians(latitude)) * 
-                    cos(radians(longitude) - radians(:lng)) + 
+                    cos(radians(stop_lat)) * 
+                    cos(radians(stop_lon) - radians(:lng)) + 
                     sin(radians(:lat)) * 
-                    sin(radians(latitude))
+                    sin(radians(stop_lat))
                 )
             ) <= :radius
             ORDER BY distance
@@ -561,18 +518,22 @@ def get_nearby_stops(
         with engine.connect() as conn:
             df = pd.read_sql(query, conn, params={"lat": lat, "lng": lng, "radius": radius})
         
+        if df.empty:
+            logger.info(f"⚠️ No stops found near ({lat}, {lng}) within {radius}m")
+            return {"success": True, "count": 0, "stops": []}
+        
         stops = [
             {
                 "stop_id": row["stop_id"],
                 "stop_name": row["stop_name"],
-                "latitude": row["latitude"],
-                "longitude": row["longitude"],
+                "latitude": float(row["latitude"]),
+                "longitude": float(row["longitude"]),
                 "distance": int(row["distance"])
             }
             for _, row in df.iterrows()
         ]
         
-        logger.info(f"✅ Found {len(stops)} stops near ({lat}, {lng})")
+        logger.info(f"Found {len(stops)} stops near ({lat}, {lng})")
         
         return {"success": True, "count": len(stops), "stops": stops}
     
@@ -623,9 +584,8 @@ def get_stop_arrivals(stop_id: str):
         logger.error(f"Error in get_stop_arrivals: {e}")
         return {"success": False, "error": str(e), "arrivals": []}
 
-# =====================================================
-# ENDPOINTS - VISUALIZATIONS
-# =====================================================
+
+# ENDPOINTS VISUALIZATIONS
 @app.get("/visualizations/list")
 def list_visualizations():
     """List all available visualization files"""
@@ -660,7 +620,7 @@ def list_visualizations():
 
 @app.get("/visualizations/{filename}")
 def get_visualization(filename: str):
-    """Serve visualization file"""
+    """getting visualization file"""
     try:
         file_path = os.path.join(VISUALIZATIONS_DIR, filename)
         if os.path.exists(file_path):
@@ -672,7 +632,7 @@ def get_visualization(filename: str):
 
 @app.get("/videos/{filename}")
 def get_video(filename: str):
-    """Serve video/gif file"""
+    """getting video or gif file"""
     try:
         file_path = os.path.join(VIDEOS_DIR, filename)
         if os.path.exists(file_path):
@@ -682,12 +642,11 @@ def get_video(filename: str):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-# =====================================================
-# ENDPOINTS - MODEL PERFORMANCE
-# =====================================================
+
+#ENDPOINTS MODEL PERFORMANCE
 @app.get("/model/performance")
 def get_model_performance():
-    """Get latest model performance metrics"""
+    """Getting the latest model performance metrics"""
     try:
         query = """
             SELECT 
@@ -737,9 +696,8 @@ def get_model_performance():
         logger.error(f"Error in get_model_performance: {e}")
         return {"success": False, "error": str(e)}
 
-# =====================================================
-# RUN SERVER
-# =====================================================
+
+#RUN SERVER
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(

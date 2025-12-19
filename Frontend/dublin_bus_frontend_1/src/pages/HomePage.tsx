@@ -303,7 +303,7 @@ const HomePage: React.FC = () => {
           <Col>
             <Card bg="dark" text="white" className="shadow-lg border-0">
               <Card.Header className="bg-transparent border-bottom border-secondary">
-                <h5 className="mb-0">📍 Stops Near You (within 500m)</h5>
+                <h5 className="mb-0">📍 Stops Near By You (within 500m)</h5>
               </Card.Header>
               <Card.Body>
                 {loadingStops ? (

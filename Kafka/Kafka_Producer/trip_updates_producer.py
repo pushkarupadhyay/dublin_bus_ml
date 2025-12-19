@@ -78,12 +78,12 @@ def flatten_stop_updates(trip_id, route_id, direction_id, start_date, start_time
             arrival_delay = stop_update.get('arrival', {}).get('delay')
             departure_delay = stop_update.get('departure', {}).get('delay')
             
-            # Skip if no delay information
+            #Skip if no delay information
             if arrival_delay is None and departure_delay is None:
                 continue
             
             stop_record = {
-                # Trip Information
+                #Trip Information
                 'trip_id': trip_id,
                 'route_id': route_id,
                 'direction_id': direction_id,
@@ -91,27 +91,27 @@ def flatten_stop_updates(trip_id, route_id, direction_id, start_date, start_time
                 'start_time': start_time,
                 'schedule_relationship': schedule_relationship,
                 
-                # Stop Information
+                #Stop Information
                 'stop_sequence': stop_update.get('stop_sequence'),
                 'stop_id': stop_update.get('stop_id'),
                 'stop_schedule_relationship': stop_update.get('schedule_relationship'),
                 
-                # Delays (in seconds) - YOUR ML TARGET!
+                #Delays (in seconds) - our ML target col
                 'arrival_delay': arrival_delay,
                 'departure_delay': departure_delay,
                 
-                # Times
+                #Times
                 'arrival_time': stop_update.get('arrival', {}).get('time'),
                 'departure_time': stop_update.get('departure', {}).get('time'),
                 
-                # Vehicle ID
+                #Vehicle ID
                 'vehicle_id': vehicle_id,
                 
-                # Timestamps
+                #Timestamps
                 'trip_timestamp': trip_timestamp,
                 'ingestion_timestamp': datetime.now(timezone.utc).isoformat(),
                 
-                # Data source
+                #Data source
                 'source': 'tfi_trip_updates_api'
             }
             
@@ -124,7 +124,6 @@ def flatten_stop_updates(trip_id, route_id, direction_id, start_date, start_time
     return flattened
 
 def parse_trip_update(entity):
-    """Parse individual trip_update entity and flatten stop updates"""
     try:
         trip_update = entity.get('trip_update', {})
         trip_data = trip_update.get('trip', {})
@@ -134,7 +133,7 @@ def parse_trip_update(entity):
         if not trip_data or not stop_time_updates:
             return []
         
-        # Extract trip-level information
+        #Extract trip-level information
         trip_id = trip_data.get('trip_id')
         route_id = trip_data.get('route_id')
         direction_id = trip_data.get('direction_id')
@@ -144,11 +143,11 @@ def parse_trip_update(entity):
         vehicle_id = vehicle_data.get('id')
         trip_timestamp = trip_update.get('timestamp')
         
-        # Validate required fields
+        #Validate required fields
         if not all([trip_id, route_id, trip_timestamp]):
             return []
         
-        # Flatten stop updates
+        #Flatten stop updates
         flattened = flatten_stop_updates(
             trip_id=trip_id,
             route_id=route_id,
@@ -168,9 +167,7 @@ def parse_trip_update(entity):
         return []
 
 def main():
-    logger.info("=" * 80)
     logger.info("Starting TFI Trip Updates Producer")
-    logger.info("=" * 80)
     logger.info(f"API URL: {TFI_TRIPUPDATES_URL}")
     logger.info(f"Kafka Broker: {KAFKA_BROKER}")
     logger.info(f"Kafka Topic: {KAFKA_TOPIC}")
@@ -184,11 +181,11 @@ def main():
     error_count = 0
     
     try:
-        logger.info("Starting to fetch trip updates...\n")
+        logger.info("Starting to fetch trip updates\n")
         
         while True:
             try:
-                # Fetch data
+                #Fetch data
                 response = fetch_trip_updates()
                 
                 if response is None:
@@ -211,10 +208,10 @@ def main():
                     flattened = parse_trip_update(entity)
                     
                     for stop_record in flattened:
-                        # Add feed timestamp
+                        #Add feed timestamp
                         stop_record['feed_timestamp'] = feed_timestamp
                         
-                        # Send to Kafka - SYNCHRONOUS (no callbacks)
+                        #Send to Kafka - SYNCHRONOUS (no callbacks)
                         try:
                             producer.send(KAFKA_TOPIC, value=stop_record).get(timeout=5)
                         except Exception as send_err:
@@ -224,21 +221,21 @@ def main():
                         batch_count += 1
                         stop_update_count += 1
                         
-                        # Log sample data (first 3 only)
+                        #Log sample data (first 3 only)
                         if batch_count <= 3:
                             arr_delay = stop_record.get('arrival_delay', 'N/A')
                             dep_delay = stop_record.get('departure_delay', 'N/A')
                             trip_id = stop_record.get('trip_id', 'N/A')
                             stop_id = stop_record.get('stop_id', 'N/A')
-                            logger.info(f"  ✓ Trip: {str(trip_id)[:25]:25} | Stop: {str(stop_id)[:10]:10} | Arr: {str(arr_delay):8} | Dep: {str(dep_delay):8}")
+                            logger.info(f"  Trip: {str(trip_id)[:25]:25} | Stop: {str(stop_id)[:10]:10} | Arr: {str(arr_delay):8} | Dep: {str(dep_delay):8}")
                     
                     if flattened:
                         trip_count += 1
                 
                 if batch_count > 3:
-                    logger.info(f"  ... and {batch_count - 3} more stop updates")
+                    logger.info(f"   and {batch_count - 3} more stop updates")
                 
-                logger.info(f"✓ Sent {batch_count} stop updates from {trip_count} trips to Kafka\n")
+                logger.info(f"Sent {batch_count} stop updates from {trip_count} trips to Kafka\n")
                 trip_update_count += trip_count
                 
                 # Wait before next fetch
@@ -246,14 +243,12 @@ def main():
             
             except Exception as e:
                 error_count += 1
-                logger.error(f"✗ Error in fetch loop: {e}", exc_info=False)
+                logger.error(f"Error in fetch loop: {e}", exc_info=False)
                 time.sleep(FETCH_INTERVAL)
                 continue
     
     except KeyboardInterrupt:
-        logger.info(f"\n\n{'=' * 80}")
         logger.info("Producer stopped by user")
-        logger.info(f"{'=' * 80}")
         logger.info(f"Total API requests: {request_count}")
         logger.info(f"Total trips processed: {trip_update_count}")
         logger.info(f"Total stop updates sent: {stop_update_count}")
@@ -263,7 +258,7 @@ def main():
         if producer:
             producer.flush()
             producer.close()
-            logger.info("✓ Kafka producer closed")
+            logger.info("Kafka producer closed")
 
 if __name__ == "__main__":
     main()

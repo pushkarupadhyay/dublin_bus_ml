@@ -20,7 +20,7 @@ def load_latest_meta(artifacts_dir: str) -> tuple[dict, str]:
     latest = max(files, key=os.path.getmtime)
     meta = joblib.load(latest)
     model_version = os.path.splitext(os.path.basename(latest))[0]
-    print(f"✅ Loaded meta: {os.path.basename(latest)}")
+    print(f"Loaded from meta: {os.path.basename(latest)}")
     return meta, model_version
 
 
@@ -93,13 +93,13 @@ def load_models(meta: dict, artifacts_dir: str):
     paths = meta["model_paths"]
     models = []
     for p in paths:
-        # resolve linux path -> windows folder by basename
+        #linux path to windows folder by basename
         if not os.path.exists(p):
             p = os.path.join(artifacts_dir, os.path.basename(p))
         m = CatBoostRegressor()
         m.load_model(p)
         models.append(m)
-    print(f"✅ Loaded {len(models)} CatBoost models")
+    print(f"Loaded {len(models)} CatBoost models")
     return models
 
 
@@ -157,10 +157,10 @@ def main():
 
     models = load_models(meta, ARTIFACTS_DIR)
 
-    # Predict latest rows
+    #Predict latest rows
     df_pred = fetch_latest_rows(engine, PRED_LIMIT)
     if df_pred.empty:
-        print("⚠️ No rows found for prediction.")
+        print("No rows found for prediction")
         return
     X_pred = prepare_X(df_pred, meta)
 
@@ -169,13 +169,13 @@ def main():
     preds_std = np.std(all_preds, axis=0)
 
     write_predictions(engine, df_pred["id"].tolist(), preds_mean, preds_std)
-    print("✅ Wrote arrival_delay_pred + arrival_delay_pred_std.")
+    print("Wrote arrival_delay_pred + arrival_delay_pred_std.")
 
     print("\nPredictions (arrival_delay):")
     for row_id, pm, ps in zip(df_pred["id"].tolist(), preds_mean, preds_std):
         print(f"id={row_id}  pred={float(pm):.3f}  std={float(ps):.3f}")
 
-    # Metrics window
+    #Metrics window
     df_m = fetch_latest_rows(engine, METRIC_LIMIT)
     X_m = prepare_X(df_m, meta)
     all_m = np.vstack([m.predict(X_m) for m in models])
@@ -201,7 +201,7 @@ def main():
     print("Baseline metrics:", compute_metrics(y_eval, baseline))
 
     write_scoring_run(engine, model_version, pred_rows=len(df_pred), metric_rows=int(mask.sum()), metrics=metrics, stats=stats)
-    print("✅ Saved scoring run to model_scoring_runs.")
+    print("Saved scoring run to model_scoring_runs")
 
 
 if __name__ == "__main__":

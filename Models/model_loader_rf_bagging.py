@@ -29,7 +29,7 @@ class RandomForestModelService:
                 user=self.db_config["user"],
                 password=self.db_config["password"]
             )
-            print("✅ Database connection established")
+            print("Database connection established")
             return conn
         except psycopg2.Error as e:
             raise ConnectionError(f"Failed to connect to database: {e}")
@@ -47,7 +47,7 @@ class RandomForestModelService:
         try:
             # Load metadata
             self.meta = joblib.load(latest_meta_file)
-            print(f"✅ Loaded metadata: {os.path.basename(latest_meta_file)}")
+            print(f"Loaded metadata: {os.path.basename(latest_meta_file)}")
             
             # Load individual models
             self.models = []
@@ -81,7 +81,7 @@ class RandomForestModelService:
             """
             
             df = pd.read_sql(query, self.conn)
-            print(f"✅ Fetched {len(df)} rows from database")
+            print(f"Fetched {len(df)} rows from database")
             
         except Exception as e:
             raise RuntimeError(f"Failed to fetch data: {e}")
@@ -97,7 +97,7 @@ class RandomForestModelService:
         ]
         df = df.drop(columns=[col for col in exclude_cols if col in df.columns])
         
-        print(f"ℹ️  Columns in dataframe: {list(df.columns)}")
+        print(f"Columns in dataframe: {list(df.columns)}")
         
         # Convert timestamps
         for col in ["vehicle_timestamp", "weather_timestamp"]:
@@ -133,8 +133,8 @@ class RandomForestModelService:
         # Fill any remaining NaN
         df = df.fillna(0)
         
-        print(f"✅ Data prepared: shape = {df.shape}")
-        print(f"✅ No NaN values: {not df.isna().any().any()}")
+        print(f"Data prepared: shape = {df.shape}")
+        print(f"No NaN values: {not df.isna().any().any()}")
         
         return df
 
@@ -167,9 +167,9 @@ class RandomForestModelService:
             try:
                 preds = model.predict(X)
                 all_predictions.append(preds)
-                print(f"  ✓ Model {i+1} predictions: shape={preds.shape}")
+                print(f"  Model {i+1} predictions: shape={preds.shape}")
             except Exception as e:
-                print(f"  ⚠️  Model {i+1} prediction failed: {e}")
+                print(f"  Model {i+1} prediction failed: {e}")
         
         if not all_predictions:
             raise RuntimeError("No models produced valid predictions")
@@ -181,8 +181,8 @@ class RandomForestModelService:
         mean_predictions = np.mean(all_predictions, axis=0)
         std_predictions = np.std(all_predictions, axis=0)
         
-        print(f"✅ Ensemble predictions: mean shape={mean_predictions.shape}")
-        print(f"✅ Uncertainty estimates: std shape={std_predictions.shape}")
+        print(f"Ensemble predictions: mean shape={mean_predictions.shape}")
+        print(f"Uncertainty estimates: std shape={std_predictions.shape}")
         
         return mean_predictions, std_predictions
 
@@ -196,7 +196,7 @@ class RandomForestModelService:
         df_raw = self.fetch_input_data(limit=limit)
         
         if len(df_raw) == 0:
-            print("❌ No data to score")
+            print(" No data to score")
             return []
         
         # Prepare features
@@ -248,16 +248,16 @@ class RandomForestModelService:
                 """, (r["pred_arrival_delay"], r["pred_std"], r["id"]))
             
             self.conn.commit()
-            print(f"✅ Wrote {len(results)} predictions to database")
+            print(f"Wrote {len(results)} predictions to database")
             cursor.close()
         except Exception as e:
-            print(f"⚠️  Failed to write to database: {e}")
+            print(f"Failed to write to database: {e}")
 
     def close_connection(self):
         """Close database connection"""
         if self.conn:
             self.conn.close()
-            print("✅ Database connection closed")
+            print("Database connection closed")
 
 
 if __name__ == "__main__":
@@ -270,13 +270,13 @@ if __name__ == "__main__":
     }
 
     try:
-        # Initialize service
+        #Initialize service
         service = RandomForestModelService(db_config=db_config)
         
-        # Score batch
+        #Score batch
         results = service.score_batch(limit=10, write_db=True)
         
-        # Display results
+        #Display results
         print("\n" + "="*70)
         print("Scoring Results Summary")
         print("="*70)
@@ -289,7 +289,7 @@ if __name__ == "__main__":
         print("="*70)
         
     except Exception as e:
-        print(f"❌ Error: {e}")
+        print(f"Error: {e}")
         import traceback
         traceback.print_exc()
     

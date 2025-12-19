@@ -6,9 +6,7 @@ import L from 'leaflet';
 import { Vehicle } from '../types';
 import { FaBus, FaArrowLeft } from 'react-icons/fa';
 
-/* ============================
-   Custom Bus Icon
-============================ */
+/*Custom Bus Icon */
 const busIcon = new L.Icon({
   iconUrl:
     'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSIjMTBiOTgxIj48Y2lyY2xlIGN4PSIxMiIgY3k9IjEyIiByPSIxMCIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBmb250LXNpemU9IjE0IiBmaWxsPSJ3aGl0ZSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iPkI8L3RleHQ+PC9zdmc+',
@@ -17,10 +15,8 @@ const busIcon = new L.Icon({
   popupAnchor: [0, -16],
 });
 
-/* ============================
-   Map Controller (FIXED)
-   Auto-fit ONLY ONCE
-============================ */
+/*Map Controller
+ Auto-fit */
 const MapController: React.FC<{ vehicles: Vehicle[] }> = ({ vehicles }) => {
   const map = useMap();
   const [hasCentered, setHasCentered] = useState(false);
@@ -32,16 +28,14 @@ const MapController: React.FC<{ vehicles: Vehicle[] }> = ({ vehicles }) => {
       );
 
       map.fitBounds(bounds, { padding: [50, 50] });
-      setHasCentered(true); // 🔒 Prevent future auto-zoom
+      setHasCentered(true); // Prevent future auto-zoom
     }
   }, [vehicles, map, hasCentered]);
 
   return null;
 };
 
-/* ============================
-   Live Map Page
-============================ */
+/*Live Map Page */
 const LiveMapPage: React.FC = () => {
   const navigate = useNavigate();
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
@@ -49,9 +43,7 @@ const LiveMapPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
 
-  /* ============================
-     Fetch Vehicles (10s)
-  ============================ */
+  /* Fetch Vehicles at 10s */
   useEffect(() => {
     const fetchVehicles = async () => {
       try {
@@ -78,7 +70,7 @@ const LiveMapPage: React.FC = () => {
 
   return (
     <div style={{ backgroundColor: '#1a1d2e', minHeight: '100vh' }}>
-      {/* ================= Header ================= */}
+      {/* header */}
       <div className="bg-dark py-3 border-bottom border-secondary">
         <Container>
           <div className="d-flex justify-content-between align-items-center">
@@ -109,7 +101,7 @@ const LiveMapPage: React.FC = () => {
         </Container>
       </div>
 
-      {/* ================= Map ================= */}
+      {/* map */}
       <div style={{ height: 'calc(100vh - 120px)' }}>
         {loading && vehicles.length === 0 ? (
           <div className="d-flex justify-content-center align-items-center h-100">
@@ -177,7 +169,7 @@ const LiveMapPage: React.FC = () => {
         )}
       </div>
 
-      {/* ================= Footer ================= */}
+      {/*footer file*/}
       <div className="bg-dark py-2 border-top border-secondary">
         <Container>
           <div className="d-flex justify-content-between align-items-center">

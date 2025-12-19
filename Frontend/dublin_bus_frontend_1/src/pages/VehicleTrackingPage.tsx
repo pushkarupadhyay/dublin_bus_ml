@@ -30,7 +30,7 @@ const VehicleTrackingPage: React.FC = () => {
     const fetchVehicleData = async () => {
       try {
         setLoading(true);
-        // Mock data - replace with actual API
+        // Mock data in future replace with actual API
         const mockVehicle: VehicleDetails = {
           entity_id: '5240_1273',
           trip_id: '5240_1273',

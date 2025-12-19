@@ -32,9 +32,9 @@ def train_and_register_random_forest_bagged():
     Path(ARTIFACTS_DIR).mkdir(parents=True, exist_ok=True)
 
     N_MODELS = 7
-    BOOTSTRAP_FRAC = 1.0  # 1.0 = same size sample with replacement
+    BOOTSTRAP_FRAC = 1.0  # 1.0 =same size sample with replacement
 
-    # Database connection
+    #Database connection
     conn = psycopg2.connect(
         host="host.docker.internal",
         database="dublin_bus_db",
@@ -44,9 +44,7 @@ def train_and_register_random_forest_bagged():
     )
 
     try:
-        # ============================================================
-        # 1. LOAD DATA
-        # ============================================================
+        #LOADING DATA
         query = """
             SELECT *
             FROM bus_weather_merged
@@ -65,11 +63,10 @@ def train_and_register_random_forest_bagged():
         if df.empty:
             raise ValueError("No training data found.")
 
-        print(f"✅ Loaded {len(df)} rows from database")
+        print(f"Loaded {len(df)} rows from database")
 
-        # ============================================================
-        # 2. HANDLE COLUMN NAME TYPOS
-        # ============================================================
+
+        #HANDLE COLUMN NAME TYPOS
         rename_map = {
             "ttemperature": "temperature",
             "temperrature": "temperature",
@@ -84,24 +81,20 @@ def train_and_register_random_forest_bagged():
             if bad in df.columns and good not in df.columns:
                 df = df.rename(columns={bad: good})
 
-        # ============================================================
-        # 3. EXTRACT TARGET
-        # ============================================================
+ 
+        #EXTRACT TARGET
         y = pd.to_numeric(df["arrival_delay"], errors="coerce")
         df = df.loc[y.notna()].copy()
         y = y.loc[df.index].astype(float)
 
-        print(f"✅ Target (arrival_delay): {len(y)} non-null values")
+        print(f"Target (arrival_delay): {len(y)} non-null values")
 
-        # ============================================================
-        # 4. DROP LEAKAGE COLUMN
-        # ============================================================
+
+        #DROP LEAKAGE COL
         if "is_late" in df.columns:
             df = df.drop(columns=["is_late"])
 
-        # ============================================================
-        # 5. CREATE TIME FEATURES
-        # ============================================================
+        #CREATE TIME FEATURES
         df["vehicle_timestamp"] = pd.to_datetime(df["vehicle_timestamp"], errors="coerce", utc=True)
         df["weather_timestamp"] = pd.to_datetime(df["weather_timestamp"], errors="coerce", utc=True)
 
@@ -112,11 +105,9 @@ def train_and_register_random_forest_bagged():
 
         df = df.drop(columns=["vehicle_timestamp", "weather_timestamp"], errors="ignore")
 
-        print("✅ Time features created")
+        print(" Time features created")
 
-        # ============================================================
-        # 6. DEFINE FEATURE COLUMNS
-        # ============================================================
+        #DEFINE FEATURE COLUMNS
         GROUP_COL = "trip_id"
         CAT_COLS = [
             "route_id", "vehicle_id", "stop_id",
@@ -136,11 +127,10 @@ def train_and_register_random_forest_bagged():
         X = df[FEATURE_COLS].copy()
         groups = df[GROUP_COL].astype(str)
 
-        print(f"✅ Features: {len(FEATURE_COLS)} total ({len(CAT_COLS)} cat, {len(NUM_COLS)} num)")
+        print(f" Features: {len(FEATURE_COLS)} total ({len(CAT_COLS)} cat, {len(NUM_COLS)} num)")
 
-        # ============================================================
-        # 7. PREPROCESS FEATURES
-        # ============================================================
+
+        #PREPROCESS FEATURES
         # Categorical: fill missing with "missing" string
         for c in CAT_COLS:
             X[c] = X[c].astype("object").where(X[c].notna(), "missing").astype(str)
@@ -149,20 +139,16 @@ def train_and_register_random_forest_bagged():
         for c in NUM_COLS:
             X[c] = pd.to_numeric(X[c], errors="coerce")
 
-        # ============================================================
-        # 8. TRAIN-TEST SPLIT (by trip_id for leak prevention)
-        # ============================================================
+        #TRAIN-TEST SPLIT (by trip_id for leakage problem)
         gss = GroupShuffleSplit(n_splits=1, test_size=0.2, random_state=42)
         train_idx, val_idx = next(gss.split(X, y, groups=groups))
 
         X_train_full, X_val = X.iloc[train_idx].copy(), X.iloc[val_idx].copy()
         y_train_full, y_val = y.iloc[train_idx].copy(), y.iloc[val_idx].copy()
 
-        print(f"✅ Train: {len(X_train_full)} | Val: {len(X_val)}")
+        print(f"Train: {len(X_train_full)} | Val: {len(X_val)}")
 
-        # ============================================================
-        # 9. COMPUTE TRAIN MEDIANS (for numeric imputation)
-        # ============================================================
+        #COMPUTE TRAIN MEDIANS (for numeric imputation)
         train_medians = {
             c: float(np.nanmedian(X_train_full[c].to_numpy()))
             for c in NUM_COLS
@@ -173,9 +159,7 @@ def train_and_register_random_forest_bagged():
             X_train_full[c] = X_train_full[c].fillna(train_medians[c])
             X_val[c] = X_val[c].fillna(train_medians[c])
 
-        # ============================================================
-        # 10. ENCODE CATEGORICAL COLUMNS (Handle Unseen Values)
-        # ============================================================
+        #ENCODE CATEGORICAL COLUMNS (Handle Unseen Values)
         label_encoders = {}
         for c in CAT_COLS:
             le = LabelEncoder()
@@ -188,24 +172,21 @@ def train_and_register_random_forest_bagged():
                 try:
                     X_val_encoded.append(le.transform([val])[0])
                 except ValueError:
-                    # Unseen category in validation set → map to -1
+                    # Unseen category in validation set : map to -1
                     X_val_encoded.append(-1)
             X_val[c] = X_val_encoded
             
             label_encoders[c] = le
 
-        print("✅ Categorical features encoded (unseen values → -1)")
+        print(" Categorical features encoded (unseen values : -1)")
 
-        # ============================================================
-        # 11. TRAIN BAGGED RANDOM FOREST MODELS
-        # ============================================================
         pkl_paths = []
         val_preds_all = []
 
         n_train = len(X_train_full)
         boot_n = int(n_train * BOOTSTRAP_FRAC)
 
-        print(f"\n📊 Training {N_MODELS} Random Forest models...")
+        print(f"\nTraining {N_MODELS} Random Forest models...")
 
         for m in range(N_MODELS):
             print(f"\n  Model {m+1}/{N_MODELS}:")
@@ -250,10 +231,9 @@ def train_and_register_random_forest_bagged():
             # Store validation predictions
             val_preds_all.append(val_pred)
 
-        # ============================================================
-        # 12. COMPUTE ENSEMBLE METRICS
-        # ============================================================
-        print(f"\n🎯 Ensemble Metrics:")
+
+        #COMPUTE ENSEMBLE METRICS
+        print(f"\nEnsemble Metrics:")
 
         val_pred_mean = np.mean(np.vstack(val_preds_all), axis=0)
         val_pred_std = np.std(np.vstack(val_preds_all), axis=0)
@@ -292,12 +272,11 @@ def train_and_register_random_forest_bagged():
             meta_path,
         )
 
-        print(f"\n✅ Meta saved: {meta_path}")
-        print(f"✅ Models saved: {len(pkl_paths)} pkl files")
+        print(f"\nMeta saved: {meta_path}")
+        print(f"Models saved: {len(pkl_paths)} pkl files")
 
-        # ============================================================
-        # 14. REGISTER IN MODEL REGISTRY
-        # ============================================================
+        
+        #REGISTER IN MODEL REGISTRY
         cur = conn.cursor()
 
         cur.execute("""
@@ -322,21 +301,20 @@ def train_and_register_random_forest_bagged():
         conn.commit()
         cur.close()
 
-        print(f"\n✅ Registered: {bundle_version}")
+        print(f"\nRegistered: {bundle_version}")
         print(f"   R²={r2:.4f}, MAE={mae:.2f}s, RMSE={rmse:.2f}s")
 
     finally:
         conn.close()
 
 
-# ============================================================
+
 # DAG DEFINITION
-# ============================================================
 with DAG(
     dag_id="dublin_bus_ml_training_rf_bagged_v1",
     default_args=default_args,
     start_date=days_ago(1),
-    schedule_interval="0 2 * * *",  # Daily at 2 AM
+    schedule_interval="0 2 * * *",  # Daily at 2 AM morning UTC
     catchup=False,
     max_active_runs=1,
     tags=["ml", "training", "random_forest", "bagging"],

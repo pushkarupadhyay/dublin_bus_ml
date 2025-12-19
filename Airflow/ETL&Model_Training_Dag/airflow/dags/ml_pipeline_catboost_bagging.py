@@ -23,8 +23,7 @@ def train_and_register_catboost_bagged():
     Path(ARTIFACTS_DIR).mkdir(parents=True, exist_ok=True)
 
     N_MODELS = 7
-    BOOTSTRAP_FRAC = 1.0  # 1.0 = same size sample with replacement [web:270]
-
+    BOOTSTRAP_FRAC = 1.0  # 1.0 =same size sample with replacement
     conn = psycopg2.connect(
         host="host.docker.internal",
         database="dublin_bus_db",
@@ -75,7 +74,7 @@ def train_and_register_catboost_bagged():
         if "is_late" in df.columns:
             df = df.drop(columns=["is_late"])
 
-        # time features (pandas, no pickling issues)
+        # time features in pandas
         df["vehicle_timestamp"] = pd.to_datetime(df["vehicle_timestamp"], errors="coerce", utc=True)
         df["weather_timestamp"] = pd.to_datetime(df["weather_timestamp"], errors="coerce", utc=True)
 
@@ -109,14 +108,14 @@ def train_and_register_catboost_bagged():
         for c in NUM_COLS:
             X[c] = pd.to_numeric(X[c], errors="coerce")
 
-        # leakage-safe split by trip_id
+        # leakage free split by trip_id
         gss = GroupShuffleSplit(n_splits=1, test_size=0.2, random_state=42)
         train_idx, val_idx = next(gss.split(X, y, groups=groups))
 
         X_train_full, X_val = X.iloc[train_idx].copy(), X.iloc[val_idx].copy()
         y_train_full, y_val = y.iloc[train_idx].copy(), y.iloc[val_idx].copy()
 
-        # numeric medians from training set (fixed for all bootstrap models)
+        # numeric medians from training set
         train_medians = {c: float(np.nanmedian(X_train_full[c].to_numpy())) for c in NUM_COLS}
         for c in NUM_COLS:
             if np.isnan(train_medians[c]):
@@ -124,7 +123,7 @@ def train_and_register_catboost_bagged():
             X_train_full[c] = X_train_full[c].fillna(train_medians[c])
             X_val[c] = X_val[c].fillna(train_medians[c])
 
-        # train bagged models on bootstrap samples [web:270]
+        #train bagged models on bootstrap samples [web:270]
         cbm_paths = []
         val_preds_all = []
 
@@ -150,7 +149,7 @@ def train_and_register_catboost_bagged():
                 cat_features=CAT_COLS,
                 eval_set=(X_val, y_val),
                 use_best_model=True,
-                early_stopping_rounds=400,  # CatBoost early stopping control [web:280]
+                early_stopping_rounds=400,  #CatBoost early stopping control [web:280]
             )
 
             model_version = f"catboost_bag_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}_m{m}"
@@ -160,13 +159,13 @@ def train_and_register_catboost_bagged():
 
             val_preds_all.append(model.predict(X_val))
 
-        # ensemble metrics on validation (mean of models)
+        #ensemble metrics on validation 
         val_pred_mean = np.mean(np.vstack(val_preds_all), axis=0)
         r2 = r2_score(y_val, val_pred_mean)
         mae = mean_absolute_error(y_val, val_pred_mean)
         rmse = float(np.sqrt(mean_squared_error(y_val, val_pred_mean)))
 
-        # save meta bundle
+        #save meta bundle
         bundle_version = f"catboost_bagged_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}"
         meta_path = f"{ARTIFACTS_DIR}/{bundle_version}.joblib"
         joblib.dump(
@@ -205,9 +204,9 @@ def train_and_register_catboost_bagged():
         conn.commit()
         cur.close()
 
-        print(f"✅ Bagged CatBoost registered: {bundle_version} | R2={r2:.3f} MAE={mae:.2f} RMSE={rmse:.2f}")
-        print(f"✅ Meta saved: {meta_path}")
-        print(f"✅ Models saved: {len(cbm_paths)} cbm files")
+        print(f"Bagged CatBoost registered: {bundle_version} | R2={r2:.3f} MAE={mae:.2f} RMSE={rmse:.2f}")
+        print(f"Meta saved: {meta_path}")
+        print(f"Models saved: {len(cbm_paths)} cbm files")
 
     finally:
         conn.close()

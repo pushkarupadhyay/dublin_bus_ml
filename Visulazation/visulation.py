@@ -1,13 +1,3 @@
-"""
-Dublin Bus Project - ENHANCED Visualization Suite (FULLY FIXED v3)
-Includes: Geo-spatial Maps, 2D/3D Scatter Plots, Animated Videos
-
-FIXES:
-- Removed vehicle_type column
-- Handle NaN values in wind_speed
-- Fixed px.violin() color_continuous_scale parameter
-"""
-
 import pandas as pd
 import psycopg2
 import matplotlib.pyplot as plt
@@ -41,7 +31,7 @@ sns.set_palette("husl")
 def get_data():
     """Fetch data from DB"""
     conn = psycopg2.connect(**DB_CONFIG)
-    print("⏳ Fetching comprehensive data...")
+    print(" Fetching comprehensive data...")
     
     query = """
         SELECT 
@@ -64,7 +54,7 @@ def get_data():
     df = pd.read_sql(query, conn)
     conn.close()
     
-    print(f"✅ Loaded {len(df)} rows with geo-data.")
+    print(f" Loaded {len(df)} rows with geo-data.")
     
     df['vehicle_timestamp'] = pd.to_datetime(df['vehicle_timestamp'])
     df['hour'] = df['vehicle_timestamp'].dt.hour
@@ -76,16 +66,13 @@ def get_data():
         (df['arrival_delay'] < 3600)
     ].copy()
     
-    print(f"✅ Filtered to {len(df_filtered)} rows (removed outliers).")
+    print(f"Filtered to {len(df_filtered)} rows (removed outliers).")
     return df_filtered
 
-# ============================================================================
-# GEO-SPATIAL VISUALIZATIONS
-# ============================================================================
 
 def create_geo_heatmap(df):
     """Create interactive heatmap showing delay hotspots across Dublin"""
-    print("🗺️  Creating geo heatmap...")
+    print("Creating geo heatmap...")
     
     dublin_center = [53.3498, -6.2603]
     m = folium.Map(
@@ -101,11 +88,11 @@ def create_geo_heatmap(df):
     HeatMap(heat_data, radius=15, blur=25, max_zoom=1, min_opacity=0.3).add_to(m)
     
     m.save(f'{OUTPUT_DIR}/05_geo_heatmap.html')
-    print("✅ Generated: 05_geo_heatmap.html")
+    print("Generated: 05_geo_heatmap.html")
 
 def create_delay_hotspots_map(df):
     """Create marker cluster map showing routes with delays"""
-    print("🗺️  Creating delay hotspots map...")
+    print(" Creating delay hotspots map")
     
     dublin_center = [53.3498, -6.2603]
     m = folium.Map(location=dublin_center, zoom_start=12, tiles='OpenStreetMap')
@@ -126,15 +113,13 @@ def create_delay_hotspots_map(df):
         ).add_to(m)
     
     m.save(f'{OUTPUT_DIR}/06_delay_hotspots_map.html')
-    print("✅ Generated: 06_delay_hotspots_map.html")
+    print("Generated: 06_delay_hotspots_map.html")
 
-# ============================================================================
-# 2D SCATTER PLOTS
-# ============================================================================
+
 
 def plot_2d_scatter_temperature_delay(df):
     """2D Scatter: Temperature vs Delay (colored by humidity, sized by wind)"""
-    print("📊 Creating 2D scatter: Temperature vs Delay...")
+    print("Creating 2D scatter: Temperature vs Delay...")
     
     df_clean = df.dropna(subset=['wind_speed', 'humidity']).copy()
     print(f"   Using {len(df_clean)} rows (removed {len(df) - len(df_clean)} NaN values)")
@@ -170,11 +155,11 @@ def plot_2d_scatter_temperature_delay(df):
     )
     
     fig.write_html(f'{OUTPUT_DIR}/07_scatter_temp_delay.html')
-    print("✅ Generated: 07_scatter_temp_delay.html")
+    print(" Generated: 07_scatter_temp_delay.html")
 
 def plot_2d_scatter_wind_humidity(df):
     """2D Scatter: Wind Speed vs Humidity (colored by delay)"""
-    print("📊 Creating 2D scatter: Wind vs Humidity...")
+    print("Creating 2D scatter: Wind vs Humidity...")
     
     df_clean = df.dropna(subset=['wind_speed', 'humidity']).copy()
     
@@ -210,15 +195,12 @@ def plot_2d_scatter_wind_humidity(df):
     )
     
     fig.write_html(f'{OUTPUT_DIR}/08_scatter_wind_humidity.html')
-    print("✅ Generated: 08_scatter_wind_humidity.html")
+    print(" Generated: 08_scatter_wind_humidity.html")
 
-# ============================================================================
-# 3D SCATTER PLOTS
-# ============================================================================
 
 def plot_3d_scatter_temperature_wind_delay(df):
     """3D Scatter: Temperature, Wind Speed, Delay"""
-    print("📊 Creating 3D scatter: Temperature x Wind x Delay...")
+    print(" Creating 3D scatter: Temperature x Wind x Delay")
     
     df_clean = df.dropna(subset=['wind_speed', 'humidity']).copy()
     
@@ -257,11 +239,11 @@ def plot_3d_scatter_temperature_wind_delay(df):
     )
     
     fig.write_html(f'{OUTPUT_DIR}/09_scatter_3d_temp_wind_delay.html')
-    print("✅ Generated: 09_scatter_3d_temp_wind_delay.html")
+    print(" Generated: 09_scatter_3d_temp_wind_delay.html")
 
 def plot_3d_scatter_geo_delay(df):
     """3D Scatter: Latitude, Longitude, Delay"""
-    print("📊 Creating 3D geo-scatter: Lat x Lon x Delay...")
+    print(" Creating 3D geo-scatter: Lat x Lon x Delay...")
     
     fig = go.Figure()
     
@@ -285,7 +267,7 @@ def plot_3d_scatter_geo_delay(df):
     ))
     
     fig.update_layout(
-        title='3D Geo-Spatial: Dublin Routes × Arrival Delays',
+        title='3D Geo-Spatial: Dublin Routes Vs Arrival Delays',
         scene=dict(
             xaxis_title='Longitude',
             yaxis_title='Latitude',
@@ -298,15 +280,12 @@ def plot_3d_scatter_geo_delay(df):
     )
     
     fig.write_html(f'{OUTPUT_DIR}/10_scatter_3d_geo_delay.html')
-    print("✅ Generated: 10_scatter_3d_geo_delay.html")
+    print("Generated: 10_scatter_3d_geo_delay.html")
 
-# ============================================================================
-# ADVANCED BEAUTIFUL PLOTS
-# ============================================================================
 
 def plot_violin_delay_by_hour(df):
     """Violin plot: Distribution of delays by hour"""
-    print("📊 Creating violin plot: Delay distribution by hour...")
+    print("Creating violin plot: Delay distribution by hour...")
     
     fig = px.violin(
         df,
@@ -320,11 +299,11 @@ def plot_violin_delay_by_hour(df):
     
     fig.update_layout(width=1000, height=600, template='plotly_dark')
     fig.write_html(f'{OUTPUT_DIR}/11_violin_delay_by_hour.html')
-    print("✅ Generated: 11_violin_delay_by_hour.html")
+    print("Generated: 11_violin_delay_by_hour.html")
 
 def plot_density_heatmap_geo(df):
     """2D Density heatmap of delays across Dublin"""
-    print("📊 Creating 2D density heatmap: Geographic distribution...")
+    print("Creating 2D density heatmap: Geographic distribution...")
     
     fig = go.Figure()
     
@@ -347,11 +326,8 @@ def plot_density_heatmap_geo(df):
     )
     
     fig.write_html(f'{OUTPUT_DIR}/12_density_heatmap_geo.html')
-    print("✅ Generated: 12_density_heatmap_geo.html")
+    print("Generated: 12_density_heatmap_geo.html")
 
-# ============================================================================
-# ANIMATED VIDEOS
-# ============================================================================
 
 def create_animated_video_hourly_changes(df):
     """Create animated GIF showing how delays change across 24 hours"""
@@ -390,12 +366,12 @@ def create_animated_video_hourly_changes(df):
     anim = FuncAnimation(fig, update_frame, frames=hours, interval=500, repeat=True)
     writer = PillowWriter(fps=2)
     anim.save(f'{VIDEO_DIR}/delay_changes_hourly.gif', writer=writer)
-    print(f"✅ Generated: {VIDEO_DIR}/delay_changes_hourly.gif")
+    print(f"Generated: {VIDEO_DIR}/delay_changes_hourly.gif")
     plt.close()
 
 def create_animated_video_daily_changes(df):
     """Create animated GIF showing how delays change across days of week"""
-    print("🎬 Creating animated video: Daily delay changes...")
+    print("Creating animated video: Daily delay changes")
     
     fig, ax = plt.subplots(figsize=(12, 7))
     days_order = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
@@ -430,52 +406,42 @@ def create_animated_video_daily_changes(df):
     anim = FuncAnimation(fig, update_frame, frames=days_order, interval=800, repeat=True)
     writer = PillowWriter(fps=1.5)
     anim.save(f'{VIDEO_DIR}/delay_changes_daily.gif', writer=writer)
-    print(f"✅ Generated: {VIDEO_DIR}/delay_changes_daily.gif")
+    print(f"Generated: {VIDEO_DIR}/delay_changes_daily.gif")
     plt.close()
 
-# ============================================================================
-# MAIN
-# ============================================================================
 
 if __name__ == "__main__":
-    print("\n" + "="*70)
-    print("🎨 ENHANCED VISUALIZATION SUITE - Dublin Bus Project (FULLY FIXED v3)")
-    print("="*70 + "\n")
+    print("ENHANCED VISUALIZATION SUITE: Dublin Bus Project (FULLY FIXED v3)")
     
     try:
         df = get_data()
         
-        print("\n📍 GEO-SPATIAL VISUALIZATIONS:")
+        print("\n GEO-SPATIAL VISUALIZATIONS:")
         create_geo_heatmap(df)
         create_delay_hotspots_map(df)
         
-        print("\n📊 2D SCATTER PLOTS:")
+        print("\n2D SCATTER PLOTS:")
         plot_2d_scatter_temperature_delay(df)
         plot_2d_scatter_wind_humidity(df)
         
-        print("\n🎭 3D SCATTER PLOTS:")
+        print("\n 3D SCATTER PLOTS:")
         plot_3d_scatter_temperature_wind_delay(df)
         plot_3d_scatter_geo_delay(df)
         
-        print("\n✨ ADVANCED BEAUTIFUL PLOTS:")
+        print("\n ADVANCED BEAUTIFUL PLOTS:")
         plot_violin_delay_by_hour(df)
         plot_density_heatmap_geo(df)
         
-        print("\n🎬 ANIMATED VIDEOS:")
+        print("\n ANIMATED VIDEOS:")
         create_animated_video_hourly_changes(df)
         create_animated_video_daily_changes(df)
         
-        print("\n" + "="*70)
-        print("✅ ALL VISUALIZATIONS COMPLETED!")
-        print("="*70)
-        print(f"\n📁 Visualizations saved to: {os.path.abspath(OUTPUT_DIR)}")
-        print(f"🎬 Videos saved to: {os.path.abspath(VIDEO_DIR)}")
-        print("\nTO VIEW HTML FILES:")
-        print("  Windows: Open File Explorer → visualizations → Double-click .html")
-        print("  Command: start visualizations\\05_geo_heatmap.html")
-        print("="*70 + "\n")
+        print("ALL VISUALIZATIONS COMPLETED!")
+        
+        print(f"\nVisualizations saved to: {os.path.abspath(OUTPUT_DIR)}")
+        print(f"Videos saved to: {os.path.abspath(VIDEO_DIR)}")
         
     except Exception as e:
-        print(f"❌ Error: {e}")
+        print(f"Error: {e}")
         import traceback
         traceback.print_exc()

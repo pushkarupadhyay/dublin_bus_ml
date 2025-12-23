@@ -21,7 +21,7 @@ KAFKA_TOPIC = "trip_updates"                                #giving topic name
 
 #TFI API config
 TFI_TRIPUPDATES_URL = "https://api.nationaltransport.ie/gtfsr/v2/TripUpdates?format=json"     #trip updates endpoint
-TFI_API_KEY = os.getenv("TFI_API_KEY", "a8d1f68c87cc441d9ba7fda4bb6989d3")                 #my default primary API key
+TFI_API_KEY = os.getenv("TFI_API_KEY", "")                 #my default primary API key
 
 FETCH_INTERVAL = 10  # Fetching every 10 seconds
 

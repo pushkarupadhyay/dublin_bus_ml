@@ -18,7 +18,7 @@ KAFKA_TOPIC = "vehicle_positions"
 
 #TFI API Config
 TFI_VEHICLE_URL = "https://api.nationaltransport.ie/gtfsr/v2/Vehicles?format=json"
-TFI_API_KEY = os.getenv("TFI_API_KEY", "a8d1f68c87cc441d9ba7fda4bb6989d3")  #calling primary api
+TFI_API_KEY = os.getenv("TFI_API_KEY", "")  #calling primary api
 
 FETCH_INTERVAL = 30  #Fetch every 30 seconds
 

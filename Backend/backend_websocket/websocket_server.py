@@ -15,8 +15,8 @@ import uvicorn
 GTFS_REALTIME_API = "https://api.nationaltransport.ie/gtfsr/v2/Vehicles?format=json"
 
 # Your API Keys
-API_PRIMARY_KEY = "a8d1f68c87cc441d9ba7fda4bb6989d3"  #primary key
-API_SECONDARY_KEY = "460c0a1459ef481a9fa1d09ae0e597f6"  #backup key
+API_PRIMARY_KEY = ""  #primary key
+API_SECONDARY_KEY = ""  #backup key
 
 #Request settings
 FETCH_INTERVAL = 30  #Fetch from API every 10 seconds
